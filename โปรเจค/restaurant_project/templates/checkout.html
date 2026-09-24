@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-xl mx-auto bg-white p-8 rounded-xl shadow-md border border-slate-200 mt-4">
+    <div class="flex justify-between items-center mb-6 pb-4 border-b">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-800">🧾 ใบเสร็จรับเงิน (โต๊ะ {{ table_id }})</h2>
+            <p class="text-xs text-slate-500">ตรวจสอบรายละเอียดค่าบริการ สิทธิส่วนลด และยอดภาษี</p>
+        </div>
+        <a href="/tables" class="text-xs text-slate-500 hover:text-indigo-600 font-medium">⬅️ ย้อนกลับ</a>
+    </div>
+
+    <div class="space-y-4">
+        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h3 class="font-bold text-slate-700 text-sm mb-2">รายการอาหารที่สั่ง:</h3>
+            <ul class="divide-y divide-slate-200 text-sm">
+                {% if bill and bill.get('items') %}
+                    {% for item in bill['items'] %}
+                    <li class="py-2 flex justify-between">
+                        <span>{{ item.menu_name }} x {{ item.quantity }}</span>
+                        <span class="font-bold text-slate-700">{{ "%.2f"|format(item.price * item.quantity) }} ฿</span>
+                    </li>
+                    {% endfor %}
+                {% else %}
+                    <li class="py-2 text-slate-500 text-center">ไม่มีรายการอาหารค้างชำระ</li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <form method="POST" action="/process_checkout" class="space-y-4">
+            <input type="hidden" name="table_id" value="{{ table_id }}">
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-700">ส่วนลด (%)</label>
+                <input type="number" id="discountInput" name="discount" value="0" min="0" max="100" step="any" oninput="calculateBill()" class="mt-1 w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-indigo-600 text-lg">
+            </div>
+
+            <div class="bg-indigo-950 text-slate-100 p-5 rounded-xl space-y-2.5 text-sm shadow-inner">
+                <div class="flex justify-between text-slate-300">
+                    <span>ราคารวมค่าอาหาร:</span>
+                    <span class="font-medium">{{ "%.2f"|format(raw_total) }} ฿</span>
+                </div>
+                <div class="flex justify-between text-slate-300">
+                    <span>ค่าบริการ Service Charge (10%):</span>
+                    <span id="displayServiceCharge" class="font-medium text-emerald-400">+{{ "%.2f"|format(raw_total * 0.10) }} ฿</span>
+                </div>
+                <div class="flex justify-between text-amber-300">
+                    <span>ส่วนลด (<span id="displayDiscountPct">0</span>%):</span>
+                    <span id="displayDiscountAmount" class="font-medium">-0.00 ฿</span>
+                </div>
+                <div class="flex justify-between text-slate-300">
+                    <span>ภาษีมูลค่าเพิ่ม VAT (7%):</span>
+                    <span id="displayVat" class="font-medium text-emerald-400">+{{ "%.2f"|format((raw_total * 1.10) * 0.07) }} ฿</span>
+                </div>
+                <hr class="border-indigo-800 my-2">
+                <div class="flex justify-between items-center text-lg font-bold text-white pt-1">
+                    <span>ยอดชำระสุทธิ:</span>
+                    <span id="displayNetTotal" class="text-emerald-400 text-2xl font-extrabold">{{ "%.2f"|format((raw_total * 1.10) * 1.07) }} ฿</span>
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <a href="/tables" class="w-1/2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-center font-bold py-3 rounded-lg transition">ยกเลิก</a>
+                <button type="submit" class="w-1/2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg shadow transition">
+                    💵 ยืนยันชำระเงิน
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function calculateBill() {
+    const rawTotal = {{ raw_total }};
+    const serviceCharge = rawTotal * 0.10;
+    const subtotal = rawTotal + serviceCharge;
+    
+    let discountPct = parseFloat(document.getElementById('discountInput').value) || 0;
+    if (discountPct < 0) discountPct = 0;
+    if (discountPct > 100) discountPct = 100;
+    
+    const discountAmount = subtotal * (discountPct / 100);
+    const amountAfterDiscount = subtotal - discountAmount;
+    const vat = amountAfterDiscount * 0.07;
+    const netTotal = amountAfterDiscount + vat;
+    
+    document.getElementById('displayDiscountPct').innerText = discountPct;
+    document.getElementById('displayServiceCharge').innerText = '+' + serviceCharge.toFixed(2) + ' ฿';
+    document.getElementById('displayDiscountAmount').innerText = '-' + discountAmount.toFixed(2) + ' ฿';
+    document.getElementById('displayVat').innerText = '+' + vat.toFixed(2) + ' ฿';
+    document.getElementById('displayNetTotal').innerText = netTotal.toFixed(2) + ' ฿';
+}
+</script>
+{% endblock %}

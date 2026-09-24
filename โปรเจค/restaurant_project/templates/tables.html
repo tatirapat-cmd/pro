@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+    <!-- Header bar -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">🪑</span>
+            <div>
+                <h2 class="text-xl font-bold text-slate-800">จัดการโต๊ะอาหาร สั่งอาหาร และจองโต๊ะ</h2>
+                <p class="text-xs text-slate-500">จัดการสถานะโต๊ะสั่งอาหาร จองโต๊ะล่วงหน้า หรือเพิ่ม/ลบจำนวนโต๊ะ</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            {% if session.get('user') and session['user']['role'] in ['admin', 'staff'] %}
+            <!-- ฟอร์มเพิ่มโต๊ะใหม่ -->
+            <form action="/add_table" method="POST" class="flex gap-2">
+                <input type="number" name="table_id" placeholder="เลขโต๊ะ" class="w-24 text-xs p-2 border rounded-lg outline-none">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition whitespace-nowrap">
+                    ➕ เพิ่มโต๊ะ
+                </button>
+            </form>
+            {% endif %}
+            <a href="/" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-3 py-2 rounded-lg transition flex items-center gap-1">
+                ⬅️ กลับหน้าหลัก
+            </a>
+        </div>
+    </div>
+
+    <!-- Tables Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {% for table in tables %}
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-xl font-bold text-slate-800">โต๊ะหมายเลข {{ table.table_id }}</h3>
+                    {% if table.status == 'ว่าง' %}
+                        <span class="px-3 py-1 bg-green-100 text-green-700 font-bold text-xs rounded-full">🟢 ว่าง</span>
+                    {% elif table.status == 'จองแล้ว' %}
+                        <span class="px-3 py-1 bg-amber-100 text-amber-800 font-bold text-xs rounded-full">🟡 ติดจอง</span>
+                    {% else %}
+                        <span class="px-3 py-1 bg-red-100 text-red-700 font-bold text-xs rounded-full">🔴 มีลูกค้า</span>
+                    {% endif %}
+                </div>
+
+                <!-- รายละเอียดข้อมูลการจอง (ถ้ามี) -->
+                {% if table.status == 'จองแล้ว' and table.reservation %}
+                <div class="bg-amber-50 p-3 rounded-lg border border-amber-200 text-xs space-y-1 mb-3">
+                    <div class="font-bold text-amber-900">👤 ผู้จอง: {{ table.reservation.customer_name }}</div>
+                    <div class="text-amber-800">📞 โทร: {{ table.reservation.phone }}</div>
+                    <div class="text-amber-800">⏰ เวลา: {{ table.reservation.reserve_time }}</div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="space-y-2 pt-3 border-t">
+                {% if table.status == 'ว่าง' %}
+                <!-- สั่งอาหาร -->
+                <form action="/add_order" method="POST" class="space-y-2">
+                    <input type="hidden" name="table_id" value="{{ table.table_id }}">
+                    <select name="menu_id" class="w-full text-xs p-2 border rounded-lg bg-white" required>
+                        <option value="">-- เลือกเมนูสั่งอาหาร --</option>
+                        {% for m in menu %}
+                            {% if m.is_available %}
+                            <option value="{{ m.id }}">{{ m.name }} ({{ m.price }}฿)</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    <div class="flex gap-2">
+                        <input type="number" name="quantity" value="1" min="1" class="w-16 text-xs p-2 border rounded-lg text-center" required>
+                        <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 rounded-lg transition">🛒 สั่งอาหาร</button>
+                    </div>
+                </form>
+
+                <!-- ส่วนพับสำหรับจองโต๊ะ -->
+                <details class="bg-slate-50 p-2 rounded-lg border text-xs">
+                    <summary class="font-bold text-slate-700 cursor-pointer select-none py-1">📅 จองโต๊ะนี้</summary>
+                    <form action="/reserve_table" method="POST" class="space-y-2 mt-2 pt-2 border-t">
+                        <input type="hidden" name="table_id" value="{{ table.table_id }}">
+                        <input type="text" name="customer_name" placeholder="ชื่อผู้จอง" required class="w-full p-2 border rounded bg-white">
+                        <input type="text" name="phone" placeholder="เบอร์โทรศัพท์" required class="w-full p-2 border rounded bg-white">
+                        <input type="text" name="reserve_time" placeholder="เวลาจอง (เช่น 18:30 น.)" required class="w-full p-2 border rounded bg-white">
+                        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-1.5 rounded transition">ยืนยันการจอง</button>
+                    </form>
+                </details>
+
+                {% if session.get('user') and session['user']['role'] == 'admin' %}
+                <form action="/delete_table/{{ table.table_id }}" method="POST" onsubmit="return confirm('ต้องการลบโต๊ะ {{ table.table_id }} ใช่หรือไม่?');">
+                    <button type="submit" class="w-full text-xs bg-red-50 hover:bg-red-100 text-red-600 py-1.5 rounded-lg font-medium transition">
+                        🗑️ ลบโต๊ะนี้
+                    </button>
+                </form>
+                {% endif %}
+
+                {% elif table.status == 'จองแล้ว' %}
+                <div class="flex gap-2">
+                    <form action="/occupy_table/{{ table.table_id }}" method="POST" class="flex-1">
+                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg transition">
+                            🟢 เปิดโต๊ะ (ลูกค้ามาแล้ว)
+                        </button>
+                    </form>
+                    <form action="/cancel_reservation/{{ table.table_id }}" method="POST">
+                        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition">
+                            ❌ ยกเลิก
+                        </button>
+                    </form>
+                </div>
+
+                {% else %}
+                <!-- สถานะมีลูกค้า -->
+                <form action="/add_order" method="POST" class="space-y-2">
+                    <input type="hidden" name="table_id" value="{{ table.table_id }}">
+                    <select name="menu_id" class="w-full text-xs p-2 border rounded-lg bg-white" required>
+                        <option value="">-- สั่งอาหารเพิ่ม --</option>
+                        {% for m in menu %}
+                            {% if m.is_available %}
+                            <option value="{{ m.id }}">{{ m.name }} ({{ m.price }}฿)</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    <div class="flex gap-2">
+                        <input type="number" name="quantity" value="1" min="1" class="w-16 text-xs p-2 border rounded-lg text-center" required>
+                        <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 rounded-lg transition">🛒 เพิ่มรายการ</button>
+                    </div>
+                </form>
+                
+                <a href="/checkout/{{ table.table_id }}" class="block text-center w-full bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-bold py-2 rounded-lg transition">
+                    🧾 เช็คบิล / รับเงิน
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
